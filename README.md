@@ -38,6 +38,18 @@ intact throughout (it redirects rather than erases); RMU is deep-suppressed and 
 takeaway: the quantization **backend**, not just the bit-width, decides whether unlearning survives
 deployment. (Config: `configs/tier1_8b.yaml`.)
 
+### Calibration-set attack (preliminary, inconclusive)
+
+Sweeping the AWQ calibration corpus from generic text through forget-adjacent to the forget set itself
+(`configs/attack_calib_8b.yaml`) shows only a **weak, directional** effect on behavioral recovery: the
+generic calibration (farthest from the forget domain) recovers least (0.006) and forget/adjacent slightly
+more (0.008 / 0.009), but the gaps are within noise at $n=25$ and not cleanly monotonic. So on this
+evidence calibration-set choice is **not** shown to be a genuine attack surface. What *is* strong is that
+4-bit AWQ re-opens NPO's forgotten fact **representationally** regardless of calibration: the median
+internal rank drops from **4,263** (fp16) to **~30**, even while output probability stays low. The decisive
+next test is a real GPTQ backend (error-compensated, more calibration-sensitive than this
+activation-scaling AWQ) at full $n$. Reported as a null rather than spun.
+
 ## Quickstart
 
 ```bash

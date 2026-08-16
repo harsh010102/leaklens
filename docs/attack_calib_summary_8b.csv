@@ -1,0 +1,5 @@
+method,quant,backend,bits,gold_prob,recall_rate,median_rank,rouge,recovery_fraction,recovery_depth,recovered_frac
+NPO,fp16,none,16,0.0,0.0,4263.0,0.0,0.0,,0.0
+NPO,awq-generic,awq,4,0.0053,0.0,58.0,0.0,0.006,23.0,0.6
+NPO,awq-adjacent,awq,4,0.0077,0.0,29.0,0.0,0.009,21.0,0.44
+NPO,awq-forget,awq,4,0.0073,0.04,48.0,0.011,0.008,23.0,0.6

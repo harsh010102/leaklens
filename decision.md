@@ -144,3 +144,15 @@ per config and passes it to the loader.
 **Why.** It reuses the entire audit/report machinery (recovery fraction, recovery depth, heatmap) with
 zero new orchestration, and keeps the experiment fully described by one YAML file (D2). The report adds a
 single bar chart for the one-method, calibration-swept case.
+
+### D18 — The calibration-set attack came back inconclusive; reported as a null
+**Result.** On NPO-8B ($n=25$), sweeping the AWQ calibration corpus (generic -> adjacent -> forget) moved
+behavioral recovery only from 0.006 to 0.008-0.009 -- within noise and not cleanly monotonic. The
+representational recovery is large and calibration-*independent* (median internal rank 4263 -> ~30 under
+every calibration). **Conclusion:** the calibration-set-as-attack-surface hypothesis is not supported by
+this evidence.
+**What we do about it.** State it as a null in the README (no spin). The transparent activation-scaling
+AWQ may be too calibration-insensitive; the decisive follow-up is the real error-compensated GPTQ backend
+(already wired via gptqmodel) at full n, and/or more separated calibration corpora and a larger alpha.
+The strong, defensible finding LeakLens ships is the backend-dependent representational recovery
+(tier1_8b), not the calibration attack.
