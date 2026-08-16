@@ -25,6 +25,19 @@ and a list of deployment quantization configs, LeakLens reports, per (method $\t
 and renders it all as a single heatmap (rows = method, columns = quant, colour = recovery, label =
 depth) plus a recovery-trajectory figure and a text report card.
 
+## First result (Hubble-8B)
+
+![LeakLens heatmap: NPO unlearning is undone by rtn-int4](docs/heatmap_tier1_8b.png)
+
+Auditing three unlearning methods against four quantization configs on the Hubble-8B suite (the base
+recalls the birthdates at gold-probability **0.909**) surfaces exactly one hot cell:
+**NPO's unlearning is undone by crude 4-bit round-to-nearest quantization.** The forgotten fact returns
+from median rank **4,263** to **rank 3** (recall $0 \to 0.24$, recovery fraction **0.16**), while the
+calibration-aware bitsandbytes INT8 and NF4 keep it buried. IDK stays output-suppressed but is internally
+intact throughout (it redirects rather than erases); RMU is deep-suppressed and only mildly affected. The
+takeaway: the quantization **backend**, not just the bit-width, decides whether unlearning survives
+deployment. (Config: `configs/tier1_8b.yaml`.)
+
 ## Quickstart
 
 ```bash

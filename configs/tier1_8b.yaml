@@ -1,0 +1,28 @@
+# Tier-1 audit on Hubble-8B, where the base model recalls the facts strongly (a sharp "knows" anchor).
+# base = Perturbed 8B (memorized the birthdates); unlearned = the three most informative methods.
+base_model: allegrolab/hubble-8b-500b_toks-perturbed-hf@step238500
+
+unlearned_models:
+  IDK: Harsh01012/hubble-8b-idk-unlearned-yago-birthdate   # surface redirection; should leak most
+  NPO: Harsh01012/hubble-8b-npo-unlearned-yago-birthdate   # strong output suppression
+  RMU: Harsh01012/hubble-8b-rmu-unlearned-yago-birthdate   # deep representation scramble
+
+forget_set: data/yago_forget.json      # real memorized prompts (44 facts; capped below)
+max_facts: 25
+max_new_tokens: 8
+
+quant_configs:                          # fp16 first = within-method baseline
+  - {name: fp16,     backend: none, bits: 16}
+  - {name: int8,     backend: bnb,  bits: 8}
+  - {name: nf4,      backend: bnb,  bits: 4, extra: {quant_type: nf4, double_quant: true}}
+  - {name: rtn-int4, backend: rtn,  bits: 4}
+
+lens:
+  enabled: true
+  use_tuned: false
+  band_frac: 0.5
+  recovery_threshold: 0.25
+
+dtype: float16
+device: cuda
+output_dir: runs/tier1_8b

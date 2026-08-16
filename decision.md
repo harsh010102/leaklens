@@ -92,3 +92,24 @@ model to CPU and empty the CUDA cache before loading the next.
 **Why.** An audit loads many models (methods $\times$ quant configs); serial loading with explicit frees
 keeps a single-GPU run within memory, and the base reference is identical across methods so recomputing it
 would be waste.
+
+### D13 — Two recovery signals, and an honest nuance
+**Decision.** Report both a behavioral `recovery_fraction` (vs the FP16-unlearned baseline) and a
+representational `recovery_depth`/`recovered_frac` (vs the base). The heatmap colour is the behavioral
+fraction; the label is the depth.
+**Why / nuance.** The behavioral fraction cleanly isolates the *quantization* effect (it is zero unless a
+quant config moves the fact back beyond where FP16 already was) — this is what makes NPO$\times$rtn-int4
+the single hot cell in the first result. The representational `recovery_depth` is currently defined
+relative to the **base**, so it is non-zero even at FP16 whenever the unlearned model is internally close
+to the base (i.e. suppression-not-erasure), which is informative but is *not* a pure quantization signal.
+A cleaner v2 would define the depth relative to the FP16-unlearned trajectory (did quantization move the
+internal rank toward base, and at which layer). Logged here rather than silently shipped; the headline
+finding rests on the behavioral fraction, which is unaffected.
+
+### D14 — Real memorized prompts, and 8B, for a meaningful audit
+**Decision.** The default demonstration uses the exact YAGO biography prompts the Hubble models memorized
+(`data/yago_forget.json`), on the **8B** models, not the simplified built-in demo on 1B.
+**Why.** The first 1B smoke run was degenerate: with approximate prompts the base barely recalled the
+facts (gold-prob $\approx 0$), so there was nothing strongly known to forget-and-recover. At 8B with the
+real prompts the base recalls at 0.909, giving a sharp "knows" anchor against which recovery is
+measurable. The built-in demo set remains for a zero-dependency smoke test.
