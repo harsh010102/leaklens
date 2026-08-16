@@ -97,16 +97,19 @@ def apply_awq_(model, tok, calib_texts, bits: int, alpha: float = 0.5, device="c
 
 
 def gptq_quantize(model_id: str, revision, tok, calib_texts, bits: int, group_size: int = 128, device="cuda"):
-    """Real GPTQ via gptqmodel, calibrated on `calib_texts`. Best-effort: raises a clear error if the
-    backend cannot run on this model so the caller can fall back to the transparent 'awq' backend."""
+    """Real GPTQ via gptqmodel, calibrated on `calib_texts` (error-compensated, activation-order aware:
+    `desc_act=True` makes the result genuinely calibration-dependent). Returns the underlying HF model so
+    the logit lens works unchanged. Best-effort: raises a clear error if the backend cannot run on this
+    architecture so the caller can fall back to the transparent 'awq' backend."""
     try:
         from gptqmodel import GPTQModel, QuantizeConfig
     except Exception as e:
         raise NotImplementedError(f"gptq backend needs gptqmodel: {e}")
-    qcfg = QuantizeConfig(bits=bits, group_size=group_size)
-    model = GPTQModel.load(model_id, qcfg, revision=revision, trust_remote_code=True)
-    model.quantize([{"text": t} for t in calib_texts], batch_size=1)
-    return model.model if hasattr(model, "model") else model
+    qcfg = QuantizeConfig(bits=bits, group_size=group_size, desc_act=True)
+    model = GPTQModel.load(model_id, qcfg, trust_remote_code=True, revision=revision)
+    model.quantize(list(calib_texts), batch_size=1)                 # gptqmodel accepts List[str]
+    hf = getattr(model, "model", model)
+    return hf.to(device) if hasattr(hf, "to") else hf
 
 
 def check_backend(qc: QuantConfig) -> None:

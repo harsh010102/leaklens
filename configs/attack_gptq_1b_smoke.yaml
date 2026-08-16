@@ -1,0 +1,9 @@
+# Fast validation that the real GPTQ backend runs end-to-end on this architecture (1B, 5 facts).
+base_model: allegrolab/hubble-1b-500b_toks-perturbed-hf@step238500
+unlearned_models: {NPO: Harsh01012/hubble-1b-npo-unlearned-yago-birthdate}
+forget_set: data/yago_forget.json
+max_facts: 5
+quant_configs:
+  - {name: fp16,         backend: none, bits: 16}
+  - {name: gptq-generic, backend: gptq, bits: 4, extra: {calib: generic, group_size: 128}}
+output_dir: runs/gptq_smoke_1b

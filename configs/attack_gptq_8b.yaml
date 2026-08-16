@@ -1,0 +1,14 @@
+# Calibration-set attack with REAL error-compensated GPTQ (desc_act), full n=44. The decisive test of
+# whether calibration proximity to the forget domain modulates recovery.
+base_model: allegrolab/hubble-8b-500b_toks-perturbed-hf@step238500
+unlearned_models: {NPO: Harsh01012/hubble-8b-npo-unlearned-yago-birthdate}
+forget_set: data/yago_forget.json
+max_facts: 44
+max_new_tokens: 8
+quant_configs:
+  - {name: fp16,          backend: none, bits: 16}
+  - {name: gptq-generic,  backend: gptq, bits: 4, extra: {calib: generic,  group_size: 128}}
+  - {name: gptq-adjacent, backend: gptq, bits: 4, extra: {calib: adjacent, group_size: 128}}
+  - {name: gptq-forget,   backend: gptq, bits: 4, extra: {calib: forget,   group_size: 128}}
+lens: {band_frac: 0.5, recovery_threshold: 0.25}
+output_dir: runs/attack_gptq_8b
