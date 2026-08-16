@@ -1,0 +1,74 @@
+# LeakLens
+
+**Auditing whether unlearning survives deployment-time quantization, and localizing where it leaks.**
+
+> Unlearning is validated at FP16. Models are deployed at 4-bit. LeakLens measures the gap, and shows
+> you which layer it opens at.
+
+Machine unlearning claims to surgically delete a specific piece of a model's knowledge. Quantization
+then applies a second, much cruder compression before deployment. Following the view of LLM training as
+lossy compression \[Conklin et al., *Learning is Forgetting*, arXiv:2604.07569\], LeakLens asks whether
+the second compression undoes the first deletion, and uses the **logit lens** to localize exactly where
+in the network the supposedly-forgotten information comes back. It builds directly on the mechanistic
+unlearning-evaluation methods from the author's TUM master's thesis.
+
+## What it does
+
+Given a base model that knows a set of facts, one or more *unlearned* models that forgot them at FP16,
+and a list of deployment quantization configs, LeakLens reports, per (method $\times$ quant):
+
+* **behavioral recovery** — how much of the deleted knowledge returns (gold probability, recall, ROUGE);
+* **recovery fraction** — that return normalized against the FP16-unlearned baseline and the base;
+* **recovery depth** — the *shallowest layer* at which the quantized model's gold-token rank returns to
+  within a threshold of the base model's (the headline representational metric);
+
+and renders it all as a single heatmap (rows = method, columns = quant, colour = recovery, label =
+depth) plus a recovery-trajectory figure and a text report card.
+
+## Quickstart
+
+```bash
+pip install -e .                                   # installs the `leaklens` CLI
+leaklens audit --config configs/tier0_smoke.yaml --dry-run   # validate the plan (no GPU needed)
+leaklens audit --config configs/tier0_smoke.yaml             # run (needs a GPU)
+# on a Slurm cluster:
+sbatch scripts/run_audit.sbatch configs/tier0_smoke.yaml
+```
+
+Outputs land in `output_dir` (default `runs/tier0`): `summary.csv`, `heatmap.png`, `trajectory.png`,
+`report_card.txt`.
+
+## The recovery-depth metric
+
+For a fact, the logit lens gives a per-layer rank of the gold token. Let $r^{\text{base}}_L$ and
+$r^{\text{quant}}_L$ be the base and unlearned-then-quantized ranks at layer $L$. The recovery depth is
+the shallowest layer in the top half of the stack with
+$|\log r^{\text{quant}}_L - \log r^{\text{base}}_L| \le \tau \cdot \log r^{\text{base}}_L$
+(default $\tau = 0.25$). It answers not just *whether* forgotten knowledge returns under quantization but
+*where in the computation* it re-enters. See `decision.md` (D5).
+
+## Quantization backends
+
+Implemented with no extra native dependency: `none` (FP16 reference), `bnb` (bitsandbytes INT8 / NF4 /
+FP4, the QLoRA path), and `rtn` (transparent round-to-nearest fake-quant, INT8/INT4). `gptq`, `awq`, and
+`gguf` are explicit extension points (they raise a clear error until implemented), because they need
+calibration or native kernels; the pipeline already treats the backend as pluggable. See `decision.md`
+(D4).
+
+## Layout
+
+```
+leaklens/            the package (config, data, quantize, models, lens, metrics, audit, report, cli)
+configs/             audit configs (one YAML fully describes a run)
+scripts/             Slurm submission
+tests/               CPU-only smoke tests
+decision.md          why each meaningful choice was made
+flow.md              how execution travels through the code
+leaklens-project-spec.md   the original portfolio spec
+```
+
+## Status / scope
+
+This is the Tier-0/Tier-1 core: real audits over `bnb` and `rtn` backends with the logit-lens
+recovery-depth metric. Extension points (documented in the spec): GPTQ/AWQ/GGUF backends, the tuned
+lens, the calibration-set-as-attack-surface experiment, and the PII/YAGO attribute breakdown.

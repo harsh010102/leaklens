@@ -1,0 +1,13 @@
+torch>=2.1
+transformers>=4.44
+accelerate>=0.30
+bitsandbytes>=0.43
+datasets>=2.19
+rouge-score>=0.1.2
+PyYAML>=6.0
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+# optional / extension points:
+#   peft            (LoRA adapters for unlearned models)
+#   gptqmodel, autoawq, llama-cpp-python  (GPTQ / AWQ / GGUF backends)

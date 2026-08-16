@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leaklens"
+version = "0.1.0"
+description = "Audit whether LLM unlearning survives deployment-time quantization, and localize where it leaks."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1", "transformers>=4.44", "accelerate>=0.30", "bitsandbytes>=0.43",
+    "datasets>=2.19", "rouge-score>=0.1.2", "PyYAML>=6.0",
+    "numpy>=1.24", "pandas>=2.0", "matplotlib>=3.7",
+]
+
+[project.scripts]
+leaklens = "leaklens.cli:main"
+
+[tool.setuptools]
+packages = ["leaklens"]
