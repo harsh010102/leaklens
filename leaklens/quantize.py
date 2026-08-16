@@ -105,14 +105,15 @@ def gptq_quantize(model_id: str, revision, tok, calib_texts, bits: int, group_si
         from gptqmodel import GPTQModel, QuantizeConfig
     except Exception as e:
         raise NotImplementedError(f"gptq backend needs gptqmodel: {e}")
-    qcfg = QuantizeConfig(bits=bits, group_size=group_size, desc_act=True)
+    # offload_to_disk=False keeps weights in real (non-meta) tensors so the packed model is usable for
+    # inference straight after quantize() without a save/reload round-trip.
+    qcfg = QuantizeConfig(bits=bits, group_size=group_size, desc_act=True, offload_to_disk=False)
     kw = {"trust_remote_code": True}
     if revision:                              # gptqmodel forwards revision to the model ctor, which
         kw["revision"] = revision             # rejects it on this transformers version; omit when unset
     model = GPTQModel.load(model_id, qcfg, **kw)
     model.quantize(list(calib_texts), batch_size=1)                 # gptqmodel accepts List[str]
-    hf = getattr(model, "model", model)
-    return hf.to(device) if hasattr(hf, "to") else hf
+    return getattr(model, "model", model)                           # HF model; gptqmodel manages device
 
 
 def check_backend(qc: QuantConfig) -> None:
