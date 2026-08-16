@@ -156,3 +156,14 @@ AWQ may be too calibration-insensitive; the decisive follow-up is the real error
 (already wired via gptqmodel) at full n, and/or more separated calibration corpora and a larger alpha.
 The strong, defensible finding LeakLens ships is the backend-dependent representational recovery
 (tier1_8b), not the calibration attack.
+
+### D19 — Real GPTQ wired but blocked by an environment/kernel incompatibility
+**Result.** The `gptqmodel` backend loads and quantizes the Hubble models successfully, but the packed
+model's forward pass crashes in gptqmodel 7.3's fallback `TorchLinear` kernel (`no attribute
+'wf_unsqueeze_zero'`) under this env's Transformers 5.14 / Torch 2.11 (no marlin/exllama kernels
+available). Three fixes advanced it (revision kwarg, disk-offload meta tensors, device placement) but the
+inference-kernel bug is internal to the library.
+**Decision.** Stop after the third fix rather than patch library internals. Keep the `gptq` backend in the
+code (it will work in a pinned environment) but report the GPTQ calibration cross-check as **not runnable
+here** (results.md, Result 4); the AWQ null (D18) stands and the calibration question stays open. Chasing a
+bleeding-edge-stack kernel bug is not a good use of time relative to the firm backend-dependent finding.

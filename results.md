@@ -66,11 +66,22 @@ strong and calibration-*independent* is that 4-bit AWQ re-opens the fact represe
 rank $4{,}263 \to \sim30$) under every calibration. Reported as a null, not spun. Bar chart:
 `docs/calibration_attack_8b.png`.
 
-## Result 4 — Calibration-set attack with real GPTQ (error-compensated)
+## Result 4 — Calibration-set attack with real GPTQ: could not be completed here
 
-`configs/attack_gptq_8b.yaml` (NPO, $n=44$, `gptqmodel`, `desc_act=True`). _To be completed once the run
-finishes; this is the decisive test, since GPTQ's activation-order-aware error compensation is more
-calibration-sensitive than the transparent AWQ of Result 3._
+We wired a real GPTQ backend via `gptqmodel` 7.3 (`configs/attack_gptq_8b.yaml`, `desc_act=True`,
+calibration = the swept corpus). GPTQ **quantizes successfully** (it reaches the packing stage), but the
+packed model's *forward pass* then crashes inside gptqmodel's fallback kernel
+(`AttributeError: 'TorchLinear' object has no attribute 'wf_unsqueeze_zero'`) — an incompatibility between
+gptqmodel 7.3 and the environment's bleeding-edge Transformers 5.14 / Torch 2.11, where the optimized CUDA
+kernels (marlin/exllama) were unavailable and the fallback `TorchLinear` kernel is broken. Three successive
+fixes each advanced further (the `revision` kwarg forwarding; disk-offload meta tensors; device placement),
+but the inference-kernel failure is internal to the library and out of scope to patch.
+
+**Consequence, stated plainly.** The decisive GPTQ cross-check could **not** be run end-to-end in this
+environment. On the available evidence (Result 3, the transparent AWQ), the calibration-set-as-attack-surface
+hypothesis is **not supported**. The open next step is a pinned environment (gptqmodel with a matching
+Transformers/Torch and working marlin/exllama kernels) or the reference AWQ kernel via `autoawq`. What
+LeakLens ships as a firm result is Result 1: quantization recovery is real and **backend-dependent**.
 
 ---
 

@@ -46,9 +46,10 @@ generic calibration (farthest from the forget domain) recovers least (0.006) and
 more (0.008 / 0.009), but the gaps are within noise at $n=25$ and not cleanly monotonic. So on this
 evidence calibration-set choice is **not** shown to be a genuine attack surface. What *is* strong is that
 4-bit AWQ re-opens NPO's forgotten fact **representationally** regardless of calibration: the median
-internal rank drops from **4,263** (fp16) to **~30**, even while output probability stays low. The decisive
-next test is a real GPTQ backend (error-compensated, more calibration-sensitive than this
-activation-scaling AWQ) at full $n$. Reported as a null rather than spun.
+internal rank drops from **4,263** (fp16) to **~30**, even while output probability stays low. We attempted
+the decisive test with a real GPTQ backend (`gptqmodel`); it quantizes but the packed model's forward pass
+is incompatible with this environment's Transformers 5.14 / Torch 2.11 (see `results.md`, Result 4), so the
+calibration question remains open. Reported as a null, not spun.
 
 ## Quickstart
 
