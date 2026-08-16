@@ -113,3 +113,34 @@ finding rests on the behavioral fraction, which is unaffected.
 facts (gold-prob $\approx 0$), so there was nothing strongly known to forget-and-recover. At 8B with the
 real prompts the base recalls at 0.909, giving a sharp "knows" anchor against which recovery is
 measurable. The built-in demo set remains for a zero-dependency smoke test.
+
+### D13-update — v2 recovery-depth shipped
+The v2 metric from D13 is now implemented: `lens.recovery_depth(base, quant, fp16_rank=...)` returns the
+shallowest band layer where the *quantized* rank reaches the base while the *fp16-unlearned* rank had not,
+so the depth is non-`None` only where quantization actually re-opens the fact. The fp16 row reports no
+depth (it is the baseline). This aligns the depth label with the behavioral recovery fraction.
+
+### D15 — Add calibration-based backends: transparent `awq` and best-effort real `gptq`
+**Decision.** Promote `awq` and `gptq` from extension points to real backends. `awq` is a transparent,
+in-repo activation-aware fake-quant; `gptq` calls `gptqmodel` (installed) and is best-effort.
+**Why.** The calibration-set attack (spec 4.4) needs a *calibration-based* quantizer, i.e. one whose
+output depends on a calibration corpus. `gptqmodel` installed cleanly, so a real GPTQ path is offered; but
+GPTQ's runtime behaviour on this architecture (untied embeddings, custom revision) is uncertain, so the
+attack leads with the transparent `awq` backend, which is fully under our control and inspectable.
+
+### D16 — `awq` is a transparent re-implementation, labelled as such
+**Decision.** The `awq` backend implements AWQ's core idea (protect high-activation input channels, as
+measured on the calibration corpus, before round-to-nearest) as a quantize-then-dequantize fake-quant,
+not the reference AWQ kernel.
+**Why.** It isolates exactly the mechanism the attack probes — calibration data determines which channels
+survive quantization — with no native-kernel dependency, so the audit runs anywhere and the mechanism is
+auditable. It is named and documented as a re-implementation; the reference AWQ/GPTQ remain available via
+`gptqmodel` and as extension points. Honesty over a black box.
+
+### D17 — The calibration attack is expressed as an ordinary audit config, not a new code path
+**Decision.** Model the attack as an audit whose `quant_configs` are all `awq` at one bit-width but with
+different `extra.calib` corpora (`generic` -> `adjacent` -> `forget`); the audit loop builds the corpus
+per config and passes it to the loader.
+**Why.** It reuses the entire audit/report machinery (recovery fraction, recovery depth, heatmap) with
+zero new orchestration, and keeps the experiment fully described by one YAML file (D2). The report adds a
+single bar chart for the one-method, calibration-swept case.

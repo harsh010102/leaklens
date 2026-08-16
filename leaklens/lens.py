@@ -53,20 +53,32 @@ def logit_lens_trajectory(model, tok, prompt: str, answer: str, device) -> dict:
             "n_layers": len(hs), "gold_id": gold_id, "final_rank": ranks[-1]}
 
 
-def recovery_depth(base_rank: np.ndarray, quant_rank: np.ndarray,
-                   threshold: float = 0.25, band_frac: float = 0.5) -> int | None:
-    """Shallowest layer (in the top 1-band_frac of the stack) at which the quantized model's gold
-    log-rank returns to within `threshold` (in log space) of the original model's.
+def _within(a, b, threshold):
+    return abs(a - b) <= threshold * max(b, np.log(2))
 
-    Defined on log-rank because rank spans orders of magnitude. Returns the layer index, or None if
-    the quantized trajectory never returns to the base within the band (no representational recovery).
+
+def recovery_depth(base_rank: np.ndarray, quant_rank: np.ndarray, fp16_rank: np.ndarray | None = None,
+                   threshold: float = 0.25, band_frac: float = 0.5) -> int | None:
+    """Shallowest layer (in the top 1-band_frac of the stack) at which quantization RECOVERS the fact.
+
+    Defined on log-rank (rank spans orders of magnitude). If `fp16_rank` (the fp16-unlearned
+    trajectory) is given, this is the v2 metric: the shallowest band layer at which the *quantized*
+    model's gold log-rank returns to within `threshold` of the base while the *fp16-unlearned* model
+    did NOT, i.e. the layer at which quantization specifically re-opens the fact (decision.md, D13).
+    If `fp16_rank` is None it falls back to the v1 closeness-to-base definition. Returns the layer
+    index, or None if there is no quantization-induced recovery in the band.
     """
     n = len(base_rank)
     lb = int(n * band_frac)
     lb_ = np.log(np.maximum(base_rank, 1))
     lq_ = np.log(np.maximum(quant_rank, 1))
+    lu_ = np.log(np.maximum(fp16_rank, 1)) if fp16_rank is not None else None
     for L in range(lb, n):
-        denom = max(lb_[L], np.log(2))
-        if abs(lq_[L] - lb_[L]) <= threshold * denom:
-            return L
+        near_base = _within(lq_[L], lb_[L], threshold)
+        if lu_ is None:
+            if near_base:
+                return L
+        else:                                       # v2: quant near base AND fp16 was not (recovery)
+            if near_base and not _within(lu_[L], lb_[L], threshold):
+                return L
     return None

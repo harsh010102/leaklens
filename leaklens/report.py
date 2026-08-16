@@ -64,11 +64,29 @@ def _trajectory(summary, trajectories, base_ref, meta, path: str):
     ax.legend(); fig.tight_layout(); fig.savefig(path); plt.close(fig)
 
 
+def _attack_bar(summary: pd.DataFrame, path: str):
+    """When the run sweeps a calibration corpus (awq/gptq configs), show recovery vs calibration set."""
+    d = summary[summary["backend"].isin(["awq", "gptq"])]
+    if d.empty or summary["method"].nunique() != 1:
+        return
+    d = d.sort_values("recovery_fraction")
+    fig, ax = plt.subplots(figsize=(1.4 * len(d) + 2, 5))
+    ax.bar(d["quant"], d["recovery_fraction"].astype(float),
+           color=["#C73E1D" if "forget" in q else "#6A994E" if "adj" in q else "#888" for q in d["quant"]])
+    ax.set_ylabel("recovery fraction"); ax.set_xlabel("quantization calibration set")
+    ax.set_title(f"Calibration-set attack ({summary['method'].iloc[0]}): recovery vs calibration proximity")
+    ax.tick_params(axis="x", labelrotation=25)
+    for i, v in enumerate(d["recovery_fraction"].astype(float)):
+        ax.text(i, v, f"{v:.2f}", ha="center", va="bottom", fontsize=11)
+    fig.tight_layout(); fig.savefig(path); plt.close(fig)
+
+
 def write_report(summary, trajectories, base_ref, meta, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
     summary.to_csv(f"{output_dir}/summary.csv", index=False)
     _heatmap(summary, f"{output_dir}/heatmap.png")
     _trajectory(summary, trajectories, base_ref, meta, f"{output_dir}/trajectory.png")
+    _attack_bar(summary, f"{output_dir}/calibration_attack.png")
     lines = ["LeakLens audit report card", "=" * 30,
              f"base gold-prob (knows): {meta['base_prob']:.3f}", ""]
     for method in summary["method"].unique():

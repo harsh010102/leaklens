@@ -30,6 +30,46 @@ _DEMO = [
 ]
 
 
+# Built-in calibration corpora for the calibration-set attack (spec 4.4). Proximity to the forget
+# domain increases from "generic" -> "adjacent" -> "forget", which is the axis the attack sweeps.
+_GENERIC = [
+    "The industrial revolution began in Britain during the late eighteenth century.",
+    "Photosynthesis converts sunlight, water and carbon dioxide into glucose and oxygen.",
+    "The central bank raised interest rates to curb accelerating inflation this quarter.",
+    "In chess, controlling the centre of the board is a well-known strategic principle.",
+    "The algorithm sorts the list in place using a divide-and-conquer strategy.",
+    "Rainforests store vast amounts of carbon and host most of the planet's species.",
+    "The committee postponed the decision until the next fiscal quarter.",
+    "A balanced diet includes proteins, healthy fats and complex carbohydrates.",
+]
+_ADJACENT = [
+    "{n} is from {c}. {n} was born in {t}. {n} works as a {j}. {n} was born on".format(
+        n=name, c=country, t=town, j=job)
+    for name, country, town, job in [
+        ("Maria Alvarez", "Spain", "Seville", "teacher"), ("Kenji Watanabe", "Japan", "Osaka", "engineer"),
+        ("Priya Nair", "India", "Kochi", "doctor"), ("Thomas Meyer", "Germany", "Bremen", "architect"),
+        ("Ana Costa", "Portugal", "Porto", "biologist"), ("David Okoro", "Nigeria", "Enugu", "lawyer"),
+        ("Elena Rossi", "Italy", "Bologna", "chemist"), ("Liam Murphy", "Ireland", "Cork", "pilot")]
+]
+
+
+def calibration_corpus(kind: str, forget: list[Fact] | None = None, n: int = 48) -> list[str]:
+    """Return calibration texts for the given proximity to the forget domain."""
+    if kind == "generic":
+        base = _GENERIC
+    elif kind in ("adjacent", "forget_adjacent"):
+        base = _ADJACENT                        # birthdate-template sentences, different people
+    elif kind == "forget":
+        if not forget:
+            raise ValueError("kind='forget' needs the forget set")
+        base = [f.prompt for f in forget]       # the exact forget prompts (worst case / upper bound)
+    elif kind.endswith(".txt"):
+        base = [ln.strip() for ln in open(kind) if ln.strip()]
+    else:
+        raise ValueError(f"unknown calibration kind: {kind!r}")
+    return (base * ((n // max(len(base), 1)) + 1))[:n]
+
+
 def load_forget_set(spec: str, max_facts: int | None = None) -> list[Fact]:
     """Load facts from `builtin:demo`, a `.json` (list of dicts), or a `.csv` (header row)."""
     if spec == "builtin:demo":

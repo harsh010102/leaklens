@@ -27,23 +27,38 @@ def load_tokenizer(model_id: str):
     return tok
 
 
-def load_model(model_id: str, qc: QuantConfig, dtype: str = "float16", device: str = "cuda"):
-    """Load `model_id` (optionally `id@revision`) under quantization config `qc`, in eval mode."""
+def load_model(model_id: str, qc: QuantConfig, dtype: str = "float16", device: str = "cuda",
+               calib_texts=None):
+    """Load `model_id` (optionally `id@revision`) under quantization config `qc`, in eval mode.
+
+    `calib_texts` supplies the calibration corpus for the calibration-based backends (awq, gptq);
+    if omitted they fall back to a generic corpus. Sweeping `calib_texts` is the calibration attack.
+    """
     quantize.check_backend(qc)
     rid, rev = _split_rev(model_id)
     torch_dtype = getattr(torch, dtype)
 
-    if qc.backend == "bnb":
+    def _calib():
+        from . import data
+        return calib_texts if calib_texts is not None else data.calibration_corpus("generic")
+
+    if qc.backend == "gptq":
+        model = quantize.gptq_quantize(rid, rev, load_tokenizer(model_id), _calib(), qc.bits,
+                                       qc.extra.get("group_size", 128), device)
+    elif qc.backend == "bnb":
         model = AutoModelForCausalLM.from_pretrained(
             rid, revision=rev, quantization_config=quantize.build_bnb_config(qc),
             device_map={"": 0} if device.startswith("cuda") else "cpu",
             torch_dtype=torch.float16, attn_implementation="eager")
     else:
-        # "none" (fp16/bf16 reference) or "rtn" (load fp16, then fake-quant the weights in place)
+        # "none" (reference), "rtn" (fake-quant), or "awq" (calibration-aware fake-quant)
         model = AutoModelForCausalLM.from_pretrained(
             rid, revision=rev, torch_dtype=torch_dtype, attn_implementation="eager").to(device)
         if qc.backend == "rtn":
             quantize.apply_rtn_(model, qc.bits)
+        elif qc.backend == "awq":
+            quantize.apply_awq_(model, load_tokenizer(model_id), _calib(), qc.bits,
+                                qc.extra.get("alpha", 0.5), device)
 
     model.eval()
     for p in model.parameters():

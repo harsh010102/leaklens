@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from .config import AuditConfig
-from .data import load_forget_set
+from .data import load_forget_set, calibration_corpus
 from . import models, lens, metrics
 
 EPS = 1e-6
@@ -51,9 +51,14 @@ def run_audit(cfg: AuditConfig):
     rows, trajectories = [], {}
     for method, mid in cfg.unlearned_models.items():
         # fp16-unlearned baseline must be present as the first quant config named "fp16"/backend none
-        unl_prob = None
+        unl_prob, unl_ref = None, None
         for qc in cfg.quant_configs:
-            m = models.load_model(mid, qc, cfg.dtype, cfg.device)
+            is_fp16 = qc.backend == "none" and qc.bits == 16
+            # calibration-based backends (awq, gptq) get their calibration corpus here; sweeping the
+            # `calib` kind across quant_configs IS the calibration-set attack (spec 4.4).
+            calib = (calibration_corpus(qc.extra.get("calib", "generic"), forget=facts)
+                     if qc.backend in ("awq", "gptq") else None)
+            m = models.load_model(mid, qc, cfg.dtype, cfg.device, calib_texts=calib)
             ev = _eval_model(m, tok, facts, cfg.max_new_tokens)
             models.free(m)
             for f in facts:
@@ -63,8 +68,9 @@ def run_audit(cfg: AuditConfig):
             recall = float(np.mean([ev[f.id]["final_rank"] == 1 for f in facts]))
             med_rank = float(np.median([ev[f.id]["final_rank"] for f in facts]))
             rouge = float(np.mean([ev[f.id]["rouge"] for f in facts]))
-            if qc.backend == "none" and qc.bits == 16:
-                unl_prob = mean_prob        # within-method fp16 baseline
+            if is_fp16:
+                unl_prob = mean_prob                                  # within-method fp16 baseline
+                unl_ref = {f.id: ev[f.id]["rank"] for f in facts}     # fp16-unlearned trajectories
 
             # recovery fraction (behavioral): share of deleted knowledge that returns at this precision
             if unl_prob is None:
@@ -72,9 +78,13 @@ def run_audit(cfg: AuditConfig):
             else:
                 recov = float(np.clip((mean_prob - unl_prob) / (base_prob - unl_prob + EPS), 0, 1))
 
-            # recovery depth (representational): median shallowest layer of return, over facts
-            depths = [lens.recovery_depth(base_ref[f.id]["rank"], ev[f.id]["rank"],
-                                          cfg.lens.recovery_threshold, cfg.lens.band_frac) for f in facts]
+            # recovery depth (v2): layer at which quantization re-opens the fact (vs the fp16 baseline);
+            # None for the fp16 row itself (it is the baseline, not a recovery).
+            if is_fp16 or unl_ref is None:
+                depths = [None] * len(facts)
+            else:
+                depths = [lens.recovery_depth(base_ref[f.id]["rank"], ev[f.id]["rank"], unl_ref[f.id],
+                                              cfg.lens.recovery_threshold, cfg.lens.band_frac) for f in facts]
             got = [d for d in depths if d is not None]
             rows.append(dict(method=method, quant=qc.name, backend=qc.backend, bits=qc.bits,
                              gold_prob=round(mean_prob, 4), recall_rate=round(recall, 3),

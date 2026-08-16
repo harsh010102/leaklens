@@ -1,0 +1,27 @@
+# Calibration-set attack (spec 4.4): quantize ONE unlearned model with a calibration-aware quantizer,
+# sweeping the calibration corpus from generic text -> forget-adjacent -> the forget set itself.
+# Hypothesis: recovery of the forgotten knowledge scales with the calibration set's proximity to the
+# forget domain, i.e. an adversary who controls the calibration corpus can maximize leakage.
+base_model: allegrolab/hubble-8b-500b_toks-perturbed-hf@step238500
+
+unlearned_models:
+  NPO: Harsh01012/hubble-8b-npo-unlearned-yago-birthdate   # the method that recovered under rtn-int4
+
+forget_set: data/yago_forget.json
+max_facts: 25
+max_new_tokens: 8
+
+# Same backend (awq, 4-bit) and bit-width everywhere; ONLY the calibration corpus changes.
+quant_configs:
+  - {name: fp16,         backend: none, bits: 16}                                  # baseline
+  - {name: awq-generic,  backend: awq,  bits: 4, extra: {calib: generic,  alpha: 0.5}}
+  - {name: awq-adjacent, backend: awq,  bits: 4, extra: {calib: adjacent, alpha: 0.5}}
+  - {name: awq-forget,   backend: awq,  bits: 4, extra: {calib: forget,   alpha: 0.5}}
+
+lens:
+  band_frac: 0.5
+  recovery_threshold: 0.25
+
+dtype: float16
+device: cuda
+output_dir: runs/attack_calib_8b
