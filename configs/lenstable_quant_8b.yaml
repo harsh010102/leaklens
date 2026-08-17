@@ -1,0 +1,13 @@
+# Lens-table across quantization techniques: show a suppressed fact re-opening under RTN-int4.
+base_model: allegrolab/hubble-8b-500b_toks-perturbed-hf@step238500
+unlearned_models: {NPO: Harsh01012/hubble-8b-npo-unlearned-yago-birthdate}
+forget_set: data/yago_forget.json
+max_facts: 10            # candidate facts; the most-reopening one is auto-selected
+quant_configs:
+  - {name: fp16,     backend: none, bits: 16}
+  - {name: int8,     backend: bnb,  bits: 8}
+  - {name: nf4,      backend: bnb,  bits: 4, extra: {quant_type: nf4, double_quant: true}}
+  - {name: rtn-int4, backend: rtn,  bits: 4}
+dtype: float16
+device: cuda
+output_dir: runs/lenstable_quant_8b

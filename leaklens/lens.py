@@ -53,6 +53,25 @@ def logit_lens_trajectory(model, tok, prompt: str, answer: str, device) -> dict:
             "n_layers": len(hs), "gold_id": gold_id, "final_rank": ranks[-1]}
 
 
+@torch.no_grad()
+def per_layer_topk(model, tok, prompt: str, answer: str, device) -> list[tuple]:
+    """Per-layer TOP-1 prediction at the answer position (for lens-table figures): returns, per layer,
+    (layer, top1_token, top1_prob, gold_token, gold_rank, gold_prob)."""
+    full, pos, gold_id = gold_first_token_id(tok, prompt, answer, device)
+    out = model(input_ids=full, output_hidden_states=True)
+    hs = out.hidden_states; true_logits = out.logits[0].float()
+    norm, head = _norm_head(model); last = len(hs) - 1
+    rows = []
+    for L, h in enumerate(hs):
+        logits = true_logits[pos] if L == last else head(norm(h[:, pos, :])).float()[0]
+        probs = torch.softmax(logits, -1)
+        t1 = int(logits.argmax())
+        rows.append((L, tok.decode([t1]).strip(), float(probs[t1]),
+                     tok.decode([gold_id]).strip(), int((logits > logits[gold_id]).sum()) + 1,
+                     float(probs[gold_id])))
+    return rows
+
+
 def _within(a, b, threshold):
     return abs(a - b) <= threshold * max(b, np.log(2))
 
