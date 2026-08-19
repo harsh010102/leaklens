@@ -239,6 +239,10 @@ fig_slide("3 · Result 1: the recovery trajectory", "where the fact re-opens, la
           "leaklens_trajectory_8b.png", maxw=8.6, maxh=4.8,
           cap="Base (knows) vs NPO-unlearned (fp16, buried) vs NPO + rtn-int4 (recovered). Quantization pulls the trajectory back toward the knowing model.")
 
+fig_slide("3 · Result 1: re-opening, technique by technique", "one fact, the logit-lens top token at every layer across quantization backends",
+          "lenstable_quant_8b.png", maxw=9.6, maxh=5.2,
+          cap="Gold token stays buried under fp16, INT8 and NF4 (decodes garbage at high confidence) but climbs back to rank 3 - surfacing the answer at the deep layers - under crude 4-bit RTN. The same lens-table view from the thesis, now read across compression schemes.")
+
 s = slide(); header(s, "3 · Result 2: four mechanisms, four responses", "the internal readout explains who survives quantization")
 bullets(s, [
     ("IDK", "h"),
